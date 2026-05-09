@@ -1,0 +1,281 @@
+# infra/k8s/api-deployment.yaml
+# Production Kubernetes deployment for the API service
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snackpos-api
+  namespace: snackpos
+  labels:
+    app: snackpos-api
+    version: "1.0.0"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: snackpos-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: snackpos-api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "4000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: snackpos-api
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: api
+          image: ghcr.io/yourorg/snackpos-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 4000
+              name: http
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "4000"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: snackpos-secrets
+                  key: database-url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: snackpos-secrets
+                  key: redis-url
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: snackpos-secrets
+                  key: jwt-secret
+            - name: JWT_REFRESH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: snackpos-secrets
+                  key: jwt-refresh-secret
+            - name: SHOPIFY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: snackpos-secrets
+                  key: shopify-api-key
+            - name: SHOPIFY_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: snackpos-secrets
+                  key: shopify-api-secret
+            - name: ALLOWED_ORIGINS
+              valueFrom:
+                configMapKeyRef:
+                  name: snackpos-config
+                  key: allowed-origins
+            - name: TRUST_PROXY
+              value: "1"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 4000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 4000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values: [snackpos-api]
+                topologyKey: kubernetes.io/hostname
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: snackpos-api
+  namespace: snackpos
+spec:
+  selector:
+    app: snackpos-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: 4000
+  type: ClusterIP
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: snackpos-api-hpa
+  namespace: snackpos
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: snackpos-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+---
+# Workers deployment (no replicas needed for BullMQ concurrency)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snackpos-workers
+  namespace: snackpos
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: snackpos-workers
+  template:
+    metadata:
+      labels:
+        app: snackpos-workers
+    spec:
+      containers:
+        - name: workers
+          image: ghcr.io/yourorg/snackpos-workers:latest
+          imagePullPolicy: Always
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: snackpos-secrets
+                  key: database-url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: snackpos-secrets
+                  key: redis-url
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: snackpos
+  labels:
+    name: snackpos
+
+---
+# ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: snackpos-config
+  namespace: snackpos
+data:
+  allowed-origins: "https://snackstore.yourdomain.com,https://pos.yourdomain.com,https://admin.yourdomain.com"
+  shopify-api-version: "2024-01"
+  node-env: "production"
+
+---
+# Ingress (nginx)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: snackpos-ingress
+  namespace: snackpos
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    # WebSocket support for Socket.IO
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+spec:
+  tls:
+    - hosts:
+        - api.yourdomain.com
+        - snackstore.yourdomain.com
+        - pos.yourdomain.com
+        - admin.yourdomain.com
+      secretName: snackpos-tls
+  rules:
+    - host: api.yourdomain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: snackpos-api
+                port:
+                  number: 80
+
+---
+# Network Policy: isolate namespaces
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: snackpos-netpol
+  namespace: snackpos
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+        - podSelector: {}
+  egress:
+    - {} # Allow all egress (for external APIs like Shopify)

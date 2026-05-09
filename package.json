@@ -1,0 +1,35 @@
+{
+  "name": "snackpos",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "services/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "db:migrate": "turbo run db:migrate --filter=@snackpos/database",
+    "db:seed": "turbo run db:seed --filter=@snackpos/database",
+    "db:generate": "turbo run db:generate --filter=@snackpos/database",
+    "docker:up": "docker-compose -f infra/docker/docker-compose.dev.yml up -d",
+    "docker:down": "docker-compose -f infra/docker/docker-compose.dev.yml down"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
+    "prettier": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.0.0"
+}

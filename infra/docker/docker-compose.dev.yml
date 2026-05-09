@@ -1,0 +1,253 @@
+# infra/docker/docker-compose.dev.yml
+# Full SnackPOS development stack
+
+version: '3.9'
+
+services:
+  # ─── PostgreSQL ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: snackpos_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: snackpos
+      POSTGRES_USER: snackpos
+      POSTGRES_PASSWORD: snackpos_dev_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U snackpos -d snackpos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=200"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "effective_cache_size=768MB"
+      - "-c"
+      - "work_mem=4MB"
+      - "-c"
+      - "log_min_duration_statement=500"
+
+  # ─── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: snackpos_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ─── API Service ────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ../..
+      dockerfile: services/api/Dockerfile
+      target: development
+    container_name: snackpos_api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      DATABASE_URL: postgresql://snackpos:snackpos_dev_password@postgres:5432/snackpos
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: dev_jwt_secret_change_in_production_min_32_chars
+      JWT_REFRESH_SECRET: dev_refresh_secret_change_in_production_min_32_chars
+      JWT_EXPIRES_IN: 1h
+      JWT_REFRESH_EXPIRES_IN: 30d
+      SHOPIFY_API_VERSION: "2024-01"
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3001,http://localhost:3002
+      TRUST_PROXY: "1"
+    volumes:
+      - ../../services/api:/app/services/api
+      - ../../packages:/app/packages
+      - /app/node_modules
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: pnpm --filter @snackpos/api dev
+
+  # ─── Worker Service ─────────────────────────────────────────────────────────
+  workers:
+    build:
+      context: ../..
+      dockerfile: services/workers/Dockerfile
+      target: development
+    container_name: snackpos_workers
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://snackpos:snackpos_dev_password@postgres:5432/snackpos
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - ../../services:/app/services
+      - ../../packages:/app/packages
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: pnpm --filter @snackpos/workers dev
+
+  # ─── Web (Customer Storefront) ───────────────────────────────────────────────
+  web:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      target: development
+    container_name: snackpos_web
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      NEXT_PUBLIC_STORE_ID: ${STORE_ID:-default}
+    volumes:
+      - ../../apps/web:/app/apps/web
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    command: pnpm --filter @snackpos/web dev
+
+  # ─── POS App ────────────────────────────────────────────────────────────────
+  pos:
+    build:
+      context: ../..
+      dockerfile: apps/pos/Dockerfile
+      target: development
+    container_name: snackpos_pos
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    volumes:
+      - ../../apps/pos:/app/apps/pos
+      - /app/node_modules
+    ports:
+      - "3001:3001"
+    depends_on:
+      - api
+    command: pnpm --filter @snackpos/pos dev -- --port 3001
+
+  # ─── KDS App ────────────────────────────────────────────────────────────────
+  kds:
+    build:
+      context: ../..
+      dockerfile: apps/kds/Dockerfile
+      target: development
+    container_name: snackpos_kds
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    volumes:
+      - ../../apps/kds:/app/apps/kds
+      - /app/node_modules
+    ports:
+      - "3002:3002"
+    depends_on:
+      - api
+    command: pnpm --filter @snackpos/kds dev -- --port 3002
+
+  # ─── Admin Dashboard ────────────────────────────────────────────────────────
+  admin:
+    build:
+      context: ../..
+      dockerfile: apps/admin/Dockerfile
+      target: development
+    container_name: snackpos_admin
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    volumes:
+      - ../../apps/admin:/app/apps/admin
+      - /app/node_modules
+    ports:
+      - "3003:3003"
+    depends_on:
+      - api
+    command: pnpm --filter @snackpos/admin dev -- --port 3003
+
+  # ─── BullMQ Dashboard (Bull Board) ─────────────────────────────────────────
+  bull-board:
+    image: node:20-alpine
+    container_name: snackpos_bullboard
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379
+      PORT: 4001
+    ports:
+      - "4001:4001"
+    depends_on:
+      - redis
+    command: >
+      sh -c "npx @bull-board/cli@latest --redis redis://redis:6379 --port 4001"
+
+  # ─── Mailhog (local email testing) ──────────────────────────────────────────
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: snackpos_mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    logging:
+      driver: 'none'
+
+  # ─── pgAdmin (optional DB management) ───────────────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: snackpos_pgadmin
+    restart: unless-stopped
+    profiles: ["tools"]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@snackpos.dev
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+
+  # ─── Redis Insight (optional) ───────────────────────────────────────────────
+  redis-insight:
+    image: redis/redisinsight:latest
+    container_name: snackpos_redisinsight
+    profiles: ["tools"]
+    ports:
+      - "5540:5540"
+    depends_on:
+      - redis
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  default:
+    name: snackpos_network
+    driver: bridge
