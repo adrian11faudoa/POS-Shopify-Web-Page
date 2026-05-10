@@ -1,4 +1,4 @@
-# SnackPOS — Production POS + Online Ordering Ecosystem
+# Production POS + Online Ordering Ecosystem (Shopify)
 
 A complete, production-grade Point-of-Sale and online ordering platform for snack stores, integrating Shopify as the ecommerce backbone with a custom real-time POS, Kitchen Display System (KDS), and admin dashboard.
 
@@ -70,40 +70,33 @@ snackpos/
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Monorepo | Turborepo + pnpm workspaces |
-| Language | TypeScript (strict) everywhere |
-| Frontend | Next.js 14 (App Router) |
-| Backend | Express.js + Node.js 20 |
-| Database | PostgreSQL 16 |
-| Cache/Queue | Redis 7 |
-| Realtime | Socket.IO + Redis adapter |
-| Background | BullMQ workers |
-| Ecommerce | Shopify Admin + Storefront APIs |
-| Payments | Stripe + Shopify Payments |
-| Auth | JWT + RBAC + PIN (POS) |
-| Containerization | Docker + Docker Compose |
-| Orchestration | Kubernetes (production) |
-| CI/CD | GitHub Actions |
-| Monitoring | Prometheus + Grafana |
+| Layer            | Technology                      |
+| ---------------- | ------------------------------- |
+| Monorepo         | Turborepo + pnpm workspaces     |
+| Language         | TypeScript (strict) everywhere  |
+| Frontend         | Next.js 14 (App Router)         |
+| Backend          | Express.js + Node.js 20         |
+| Database         | PostgreSQL 16                   |
+| Cache/Queue      | Redis 7                         |
+| Realtime         | Socket.IO + Redis adapter       |
+| Background       | BullMQ workers                  |
+| Ecommerce        | Shopify Admin + Storefront APIs |
+| Payments         | Stripe + Shopify Payments       |
+| Auth             | JWT + RBAC + PIN (POS)          |
+| Containerization | Docker + Docker Compose         |
+| Orchestration    | Kubernetes (production)         |
+| CI/CD            | GitHub Actions                  |
+| Monitoring       | Prometheus + Grafana            |
 
 ---
 
 ## Quick Start
 
 ### Prerequisites
+
 - Node.js 20+
 - pnpm 9+
 - Docker + Docker Compose
-
-### 1. Clone and install
-
-```bash
-git clone https://github.com/yourorg/snackpos.git
-cd snackpos
-pnpm install
-```
 
 ### 2. Configure environment
 
@@ -135,21 +128,22 @@ pnpm dev
 # Starts all apps and services in parallel via Turborepo
 ```
 
-| Service | URL |
-|---------|-----|
+| Service             | URL                   |
+| ------------------- | --------------------- |
 | Customer Storefront | http://localhost:3000 |
-| POS Interface | http://localhost:3001 |
-| Kitchen Display | http://localhost:3002 |
-| Admin Dashboard | http://localhost:3003 |
-| API | http://localhost:4000 |
-| BullMQ Dashboard | http://localhost:4001 |
-| Mailhog | http://localhost:8025 |
+| POS Interface       | http://localhost:3001 |
+| Kitchen Display     | http://localhost:3002 |
+| Admin Dashboard     | http://localhost:3003 |
+| API                 | http://localhost:4000 |
+| BullMQ Dashboard    | http://localhost:4001 |
+| Mailhog             | http://localhost:8025 |
 
 ---
 
 ## Key Features
 
 ### Customer (Web)
+
 - Mobile-first Next.js storefront
 - Shopify Storefront API integration
 - Product customization with modifiers
@@ -159,6 +153,7 @@ pnpm dev
 - PWA support (offline product browsing)
 
 ### Cashier POS
+
 - Touch-optimized interface
 - USB barcode scanner (HID keyboard emulation)
 - Offline mode with IndexedDB queue
@@ -168,6 +163,7 @@ pnpm dev
 - PIN-based fast login per terminal
 
 ### Kitchen Display System (KDS)
+
 - Real-time order stream via Socket.IO
 - Item-level status tracking (pending → preparing → ready)
 - Configurable 2/3/4 column layout
@@ -176,6 +172,7 @@ pnpm dev
 - Auto-transition order to READY when all items done
 
 ### Admin Dashboard
+
 - Sales analytics with period comparisons
 - Revenue/orders/AOV/customer KPIs
 - Daily breakdown & hourly heatmaps
@@ -186,6 +183,7 @@ pnpm dev
 - Audit log for all mutations
 
 ### Shopify Integration
+
 - Bi-directional webhook sync (orders, products, inventory, customers)
 - HMAC verification on all webhooks
 - Idempotent webhook processing
@@ -198,22 +196,22 @@ pnpm dev
 
 ## Shopify Webhook Topics Handled
 
-| Topic | Action |
-|-------|--------|
-| `orders/create` | Sync new Shopify orders to our DB |
-| `orders/updated` | Sync status changes |
-| `orders/paid` | Mark order confirmed |
-| `orders/cancelled` | Cancel + release inventory |
-| `orders/fulfilled` | Mark delivered |
-| `orders/refunds/create` | Create refund record |
-| `products/create` | Sync new product |
-| `products/update` | Update product data |
-| `products/delete` | Soft-delete product |
-| `inventory_levels/update` | Sync stock levels |
-| `customers/create` | Sync new customer |
-| `customers/update` | Update customer data |
-| `shop/redact` | GDPR: delete store data |
-| `customers/redact` | GDPR: anonymize customer |
+| Topic                       | Action                            |
+| --------------------------- | --------------------------------- |
+| `orders/create`           | Sync new Shopify orders to our DB |
+| `orders/updated`          | Sync status changes               |
+| `orders/paid`             | Mark order confirmed              |
+| `orders/cancelled`        | Cancel + release inventory        |
+| `orders/fulfilled`        | Mark delivered                    |
+| `orders/refunds/create`   | Create refund record              |
+| `products/create`         | Sync new product                  |
+| `products/update`         | Update product data               |
+| `products/delete`         | Soft-delete product               |
+| `inventory_levels/update` | Sync stock levels                 |
+| `customers/create`        | Sync new customer                 |
+| `customers/update`        | Update customer data              |
+| `shop/redact`             | GDPR: delete store data           |
+| `customers/redact`        | GDPR: anonymize customer          |
 
 ---
 
@@ -256,51 +254,53 @@ POST   /api/webhooks/shopify     # Shopify webhook receiver
 ## Socket.IO Events
 
 ### Client → Server
-| Event | Payload | Description |
-|-------|---------|-------------|
-| `kds:item_preparing` | `{ orderId, itemId }` | Mark item being prepared |
-| `kds:item_ready` | `{ orderId, itemId }` | Mark item ready |
-| `order:subscribe` | `{ orderId }` | Subscribe to order updates |
-| `pos:heartbeat` | `{ posTerminalId }` | Keep terminal alive |
-| `offline_queue:sync` | `QueuedEvent[]` | Sync offline operations |
+
+| Event                  | Payload                 | Description                |
+| ---------------------- | ----------------------- | -------------------------- |
+| `kds:item_preparing` | `{ orderId, itemId }` | Mark item being prepared   |
+| `kds:item_ready`     | `{ orderId, itemId }` | Mark item ready            |
+| `order:subscribe`    | `{ orderId }`         | Subscribe to order updates |
+| `pos:heartbeat`      | `{ posTerminalId }`   | Keep terminal alive        |
+| `offline_queue:sync` | `QueuedEvent[]`       | Sync offline operations    |
 
 ### Server → Client
-| Event | Payload | Description |
-|-------|---------|-------------|
-| `order:created` | `{ storeId, order }` | New order arrived |
-| `order:status_changed` | `{ orderId, newStatus }` | Order status update |
-| `order_item:status_changed` | `{ orderId, itemId, newStatus }` | Item status update |
-| `kds:order` | `{ order }` | New order for kitchen |
-| `inventory:updated` | `{ variantId, newQuantity, alert }` | Stock level changed |
-| `pos:notification` | `{ level, title, message }` | System notification |
+
+| Event                         | Payload                               | Description           |
+| ----------------------------- | ------------------------------------- | --------------------- |
+| `order:created`             | `{ storeId, order }`                | New order arrived     |
+| `order:status_changed`      | `{ orderId, newStatus }`            | Order status update   |
+| `order_item:status_changed` | `{ orderId, itemId, newStatus }`    | Item status update    |
+| `kds:order`                 | `{ order }`                         | New order for kitchen |
+| `inventory:updated`         | `{ variantId, newQuantity, alert }` | Stock level changed   |
+| `pos:notification`          | `{ level, title, message }`         | System notification   |
 
 ---
 
 ## Database Schema Summary
 
-| Table | Description |
-|-------|-------------|
-| `stores` | Multi-tenant store config + Shopify credentials |
-| `employees` | Staff with roles, PIN hash, permissions |
-| `employee_sessions` | JWT refresh token sessions |
-| `categories` | Hierarchical product categories |
-| `products` | Product catalog with Shopify ID mapping |
-| `product_variants` | Size/flavor/etc. variants |
-| `modifier_groups` | Customization groups (toppings, etc.) |
-| `modifiers` | Individual customization options |
-| `customers` | Customer database with Shopify sync |
-| `orders` | Orders from all channels |
-| `order_items` | Line items with modifier snapshots |
-| `payments` | Payment records (cash/card/Stripe/Shopify) |
-| `refunds` | Refund records |
-| `inventory_items` | Stock levels per variant per store |
-| `inventory_movements` | Full audit trail of stock changes |
-| `suppliers` | Supplier/vendor management |
-| `coupons` | Discount codes and promotions |
-| `cash_register_sessions` | Daily cash register open/close |
-| `audit_logs` | Immutable log of all system actions |
-| `offline_queue` | POS offline operation sync queue |
-| `webhook_events` | Shopify webhook idempotency log |
+| Table                      | Description                                     |
+| -------------------------- | ----------------------------------------------- |
+| `stores`                 | Multi-tenant store config + Shopify credentials |
+| `employees`              | Staff with roles, PIN hash, permissions         |
+| `employee_sessions`      | JWT refresh token sessions                      |
+| `categories`             | Hierarchical product categories                 |
+| `products`               | Product catalog with Shopify ID mapping         |
+| `product_variants`       | Size/flavor/etc. variants                       |
+| `modifier_groups`        | Customization groups (toppings, etc.)           |
+| `modifiers`              | Individual customization options                |
+| `customers`              | Customer database with Shopify sync             |
+| `orders`                 | Orders from all channels                        |
+| `order_items`            | Line items with modifier snapshots              |
+| `payments`               | Payment records (cash/card/Stripe/Shopify)      |
+| `refunds`                | Refund records                                  |
+| `inventory_items`        | Stock levels per variant per store              |
+| `inventory_movements`    | Full audit trail of stock changes               |
+| `suppliers`              | Supplier/vendor management                      |
+| `coupons`                | Discount codes and promotions                   |
+| `cash_register_sessions` | Daily cash register open/close                  |
+| `audit_logs`             | Immutable log of all system actions             |
+| `offline_queue`          | POS offline operation sync queue                |
+| `webhook_events`         | Shopify webhook idempotency log                 |
 
 ---
 
@@ -319,47 +319,50 @@ The POS app supports full offline operation:
 
 ## Employee Permissions (RBAC)
 
-| Permission | Owner | Manager | Cashier | Kitchen | Delivery |
-|-----------|-------|---------|---------|---------|---------|
-| orders:read | ✓ | ✓ | ✓ | ✓ | ✓ |
-| orders:write | ✓ | ✓ | ✓ | ✓ | ✓ |
-| orders:cancel | ✓ | ✓ | | | |
-| orders:refund | ✓ | ✓ | | | |
-| products:write | ✓ | ✓ | | | |
-| inventory:write | ✓ | ✓ | | | |
-| reports:read | ✓ | ✓ | | | |
-| employees:write | ✓ | | | | |
-| settings:write | ✓ | | | | |
-| cash_register:close | ✓ | ✓ | ✓ | | |
-| discounts:apply | ✓ | ✓ | ✓ | | |
-| suppliers:write | ✓ | ✓ | | | |
+| Permission          | Owner | Manager | Cashier | Kitchen | Delivery |
+| ------------------- | ----- | ------- | ------- | ------- | -------- |
+| orders:read         | ✓    | ✓      | ✓      | ✓      | ✓       |
+| orders:write        | ✓    | ✓      | ✓      | ✓      | ✓       |
+| orders:cancel       | ✓    | ✓      |         |         |          |
+| orders:refund       | ✓    | ✓      |         |         |          |
+| products:write      | ✓    | ✓      |         |         |          |
+| inventory:write     | ✓    | ✓      |         |         |          |
+| reports:read        | ✓    | ✓      |         |         |          |
+| employees:write     | ✓    |         |         |         |          |
+| settings:write      | ✓    |         |         |         |          |
+| cash_register:close | ✓    | ✓      | ✓      |         |          |
+| discounts:apply     | ✓    | ✓      | ✓      |         |          |
+| suppliers:write     | ✓    | ✓      |         |         |          |
 
 ---
 
 ## Implementation Roadmap
 
 ### Phase 1 — Core Foundation (Weeks 1–3)
-- [x] Monorepo setup with Turborepo
-- [x] TypeScript shared types package
-- [x] PostgreSQL schema + migrations
-- [x] Express API with auth middleware
-- [x] JWT + PIN authentication
-- [x] Order CRUD with transaction safety
-- [x] Shopify webhook handlers
-- [x] Socket.IO realtime server
-- [x] Docker Compose dev environment
+
+- [X] Monorepo setup with Turborepo
+- [X] TypeScript shared types package
+- [X] PostgreSQL schema + migrations
+- [X] Express API with auth middleware
+- [X] JWT + PIN authentication
+- [X] Order CRUD with transaction safety
+- [X] Shopify webhook handlers
+- [X] Socket.IO realtime server
+- [X] Docker Compose dev environment
 
 ### Phase 2 — POS & KDS (Weeks 4–6)
-- [x] Cashier POS interface
-- [x] Barcode scanner integration
-- [x] Offline queue with IndexedDB
-- [x] Kitchen Display System
-- [x] Order status state machine
+
+- [X] Cashier POS interface
+- [X] Barcode scanner integration
+- [X] Offline queue with IndexedDB
+- [X] Kitchen Display System
+- [X] Order status state machine
 - [ ] Thermal printer integration (Star/Epson SDK)
 - [ ] Cash register open/close flow
 - [ ] PIN login screen
 
 ### Phase 3 — Customer Storefront (Weeks 7–9)
+
 - [ ] Next.js storefront with App Router
 - [ ] Shopify Storefront API integration
 - [ ] Product catalog with modifiers UI
@@ -370,6 +373,7 @@ The POS app supports full offline operation:
 - [ ] PWA manifest + service worker
 
 ### Phase 4 — Admin & Analytics (Weeks 10–12)
+
 - [ ] Admin dashboard layout
 - [ ] Analytics dashboard with charts
 - [ ] Sales report export (PDF/CSV)
@@ -380,6 +384,7 @@ The POS app supports full offline operation:
 - [ ] Audit log viewer
 
 ### Phase 5 — Production Hardening (Weeks 13–16)
+
 - [ ] Kubernetes manifests
 - [ ] Horizontal pod autoscaling
 - [ ] Database connection pooling (PgBouncer)
@@ -395,6 +400,7 @@ The POS app supports full offline operation:
 ## Production Deployment
 
 ### Recommended Stack
+
 - **API**: Railway, Render, or Fly.io (2-4 instances)
 - **Workers**: Railway (1-2 instances, no public port)
 - **Database**: Neon, Supabase, or RDS PostgreSQL
@@ -404,6 +410,7 @@ The POS app supports full offline operation:
 - **Monitoring**: Better Stack / Datadog
 
 ### Scaling Considerations
+
 1. **Socket.IO**: Redis adapter enables horizontal scaling — all instances share event bus
 2. **Workers**: Stateless, scale independently of API
 3. **Database**: Read replicas for analytics queries, PgBouncer for connection pooling
